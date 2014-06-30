@@ -1,17 +1,7 @@
 #
-#   Copyright 2012 Wade Alcorn wade@bindshell.net
-#
-#   Licensed under the Apache License, Version 2.0 (the "License");
-#   you may not use this file except in compliance with the License.
-#   You may obtain a copy of the License at
-#
-#       http://www.apache.org/licenses/LICENSE-2.0
-#
-#   Unless required by applicable law or agreed to in writing, software
-#   distributed under the License is distributed on an "AS IS" BASIS,
-#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#   See the License for the specific language governing permissions and
-#   limitations under the License.
+# Copyright (c) 2006-2014 Wade Alcorn - wade@bindshell.net
+# Browser Exploitation Framework (BeEF) - http://beefproject.com
+# See the file 'doc/COPYING' for copying permission
 #
 
 module BeEF
@@ -48,6 +38,23 @@ module Core
       token = OpenSSL::Random.random_bytes(token_length).unpack("H*")[0]
       config.set('beef.api_token', token)
       token
+    end
+
+    # Generates a unique identifier for DNS rules.
+    #
+    # @return [String] 8-character hex identifier
+    def self.dns_rule_id
+      id = nil
+      length = 4
+
+      begin
+        id = OpenSSL::Random.random_bytes(length).unpack('H*')[0]
+        BeEF::Core::Models::Dns::Rule.each { |rule| throw StandardError if id == rule.id }
+      rescue StandardError
+        retry
+      end
+
+      id.to_s
     end
   
   end

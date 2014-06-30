@@ -1,17 +1,7 @@
 #
-#   Copyright 2012 Wade Alcorn wade@bindshell.net
-#
-#   Licensed under the Apache License, Version 2.0 (the "License");
-#   you may not use this file except in compliance with the License.
-#   You may obtain a copy of the License at
-#
-#       http://www.apache.org/licenses/LICENSE-2.0
-#
-#   Unless required by applicable law or agreed to in writing, software
-#   distributed under the License is distributed on an "AS IS" BASIS,
-#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#   See the License for the specific language governing permissions and
-#   limitations under the License.
+# Copyright (c) 2006-2014 Wade Alcorn - wade@bindshell.net
+# Browser Exploitation Framework (BeEF) - http://beefproject.com
+# See the file 'doc/COPYING' for copying permission
 #
 
 # Function used to print errors to the console
@@ -24,6 +14,18 @@ end
 # @param [String] s String to be printed
 def print_info(s)
   puts Time.now.localtime.strftime("[%k:%M:%S]")+'[*]'.blue+' '+s
+end
+
+# Function used to print information to the console (wraps print_info)
+# @param [String] s String to be printed
+def print_status(s)
+  print_info(s)
+end
+
+# Function used to print warning information
+# @param [String] s String to be printed
+def print_warning(s)
+  puts Time.now.localtime.strftime("[%k:%M:%S]")+'[!]'.yellow+' '+s.to_s
 end
 
 # Function used to print debug information
@@ -40,6 +42,12 @@ end
 # @param [String] s String to be printed
 def print_success(s)
   puts Time.now.localtime.strftime("[%k:%M:%S]")+'[+]'.green+' '+s
+end
+
+# Function used to print successes to the console (wraps print_success)
+# @param [String] s String to be printed
+def print_good(s)
+  print_success(s)
 end
 
 # Print multiple lines with decoration split by the return character

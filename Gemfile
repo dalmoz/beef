@@ -1,46 +1,48 @@
 # BeEF's Gemfile
 
 #
-#   Copyright 2012 Wade Alcorn wade@bindshell.net
-#
-#   Licensed under the Apache License, Version 2.0 (the "License");
-#   you may not use this file except in compliance with the License.
-#   You may obtain a copy of the License at
-#
-#       http://www.apache.org/licenses/LICENSE-2.0
-#
-#   Unless required by applicable law or agreed to in writing, software
-#   distributed under the License is distributed on an "AS IS" BASIS,
-#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#   See the License for the specific language governing permissions and
-#   limitations under the License.
+# Copyright (c) 2006-2014 Wade Alcorn - wade@bindshell.net
+# Browser Exploitation Framework (BeEF) - http://beefproject.com
+# See the file 'doc/COPYING' for copying permission
 #
 
-# Gems only required on Windows, or with specific Windows issues
+gem "eventmachine", "1.0.3"
+gem "thin"
+gem "sinatra", "1.4.2"
+gem "rack", "1.5.2"
+gem "em-websocket", "~> 0.3.6" # WebSocket support
+gem "uglifier", "~> 2.2.1"
+
+# Windows support
 if RUBY_PLATFORM.downcase.include?("mswin") || RUBY_PLATFORM.downcase.include?("mingw")
+  # make sure you install this gem following https://github.com/hiranpeiris/therubyracer_for_windows
+  gem "therubyracer", "~> 0.11.0beta1"
+  gem "execjs"
   gem "win32console"
-  gem "eventmachine", "1.0.0.beta.4.1"
-else
-  gem "eventmachine", "0.12.10"
+elsif !RUBY_PLATFORM.downcase.include?("darwin")
+  gem "therubyracer"
+  gem "execjs"
 end
 
-gem "thin"
-gem "sinatra", "1.3.2"
-gem "em-websocket", "~> 0.3.6"
-gem "jsmin", "~> 1.0.1"
 gem "ansi"
 gem "term-ansicolor", :require => "term/ansicolor"
 gem "dm-core"
 gem "json"
 gem "data_objects"
-gem "dm-sqlite-adapter"
+gem "dm-sqlite-adapter"  # SQLite support
+#gem dm-postgres-adapter # PostgreSQL support
+#gem dm-mysql-adapter    # MySQL support
 gem "parseconfig"
 gem "erubis"
 gem "dm-migrations"
-gem "msfrpc-client"
+gem "msfrpc-client"        # Metasploit Integration extension
+#gem "twitter", ">= 5.0.0" # Twitter Notifications extension
+gem "rubyzip", ">= 1.0.0"
+gem "rubydns", "0.7.0"     # DNS extension
+gem "geoip"                # geolocation support
 
+# For running unit tests
 if ENV['BEEF_TEST']
-# for running unit tests
   gem "test-unit"
   gem "test-unit-full"
   gem "curb"
@@ -51,7 +53,7 @@ if ENV['BEEF_TEST']
   # sudo apt-get install libxslt-dev libxml2-dev
   # sudo port install libxml2 libxslt
   gem "capybara"
-  #RESTful API tests/generic command module tests
+  # RESTful API tests/generic command module tests
   gem "rest-client", "~> 1.6.7"
 end
 

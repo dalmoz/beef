@@ -1,19 +1,9 @@
 #!/usr/bin/env ruby
 
 #
-#   Copyright 2012 Wade Alcorn wade@bindshell.net
-#
-#   Licensed under the Apache License, Version 2.0 (the "License");
-#   you may not use this file except in compliance with the License.
-#   You may obtain a copy of the License at
-#
-#       http://www.apache.org/licenses/LICENSE-2.0
-#
-#   Unless required by applicable law or agreed to in writing, software
-#   distributed under the License is distributed on an "AS IS" BASIS,
-#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#   See the License for the specific language governing permissions and
-#   limitations under the License.
+# Copyright (c) 2006-2014 Wade Alcorn - wade@bindshell.net
+# Browser Exploitation Framework (BeEF) - http://beefproject.com
+# See the file 'doc/COPYING' for copying permission
 #
 
 # stop deprecation warning from being displayed
@@ -68,6 +58,11 @@ unless BeEF::Core::Console::CommandLine.parse[:ws_port].empty?
   config.set('beef.http.websocket.port', BeEF::Core::Console::CommandLine.parse[:ws_port])
 end
 
+# @note Check if interactive was specified from the command line, therefore override the extension to enable
+if BeEF::Core::Console::CommandLine.parse[:interactive] == true
+  config.set('beef.extension.console.shell.enable',true)
+end
+
 # @note Prints BeEF welcome message
 BeEF::Core::Console::Banners.print_welcome_msg
 
@@ -81,10 +76,11 @@ Socket.do_not_reverse_lookup = true
 case config.get("beef.database.driver")
   when "sqlite"
     DataMapper.setup(:default, "sqlite3://#{$root_dir}/#{config.get("beef.database.db_file")}")
-  when "mysql","postgres"
+  when "mysql", "postgres"
     DataMapper.setup(:default,
                      :adapter => config.get("beef.database.driver"),
                      :host => config.get("beef.database.db_host"),
+                     :port => config.get("beef.database.db_port"),
                      :username => config.get("beef.database.db_user"),
                      :password => config.get("beef.database.db_passwd"),
                      :database => config.get("beef.database.db_name"),
@@ -124,10 +120,11 @@ print_info "RESTful API key: #{BeEF::Core::Crypto::api_token}"
 #@note Starts the WebSocket server
 if config.get("beef.http.websocket.enable")
   BeEF::Core::Websocket::Websocket.instance
-  print_info "Starting WebSocket server on port [#{config.get("beef.http.websocket.port").to_i}], secure [#{config.get("beef.http.websocket.secure")}], timer [#{config.get("beef.http.websocket.alive_timer")}]"
+  print_info "Starting WebSocket server on port [#{config.get("beef.http.websocket.port").to_i}], timer [#{config.get("beef.http.websocket.alive_timer")}]"
+  if config.get("beef.http.websocket.secure")
+    print_info "Starting WebSocketSecure server on port [#{config.get("beef.http.websocket.secure_port").to_i}], timer [#{config.get("beef.http.websocket.alive_timer")}]"
+  end
 end
-
-
 
 
 # @note Call the API method 'pre_http_start'
@@ -140,7 +137,7 @@ if config.get("beef.extension.console.shell.enable") == true
   begin
     FileUtils.mkdir_p(File.expand_path(config.get("beef.extension.console.shell.historyfolder")))
     BeEF::Extension::Console::Shell.new(BeEF::Extension::Console::Shell::DefaultPrompt,
-                                        BeEF::Extension::Console::Shell::DefaultPromptChar,{'config' => config, 'http_hook_server' => http_hook_server}).run
+                                        BeEF::Extension::Console::Shell::DefaultPromptChar, {'config' => config, 'http_hook_server' => http_hook_server}).run
   rescue Interrupt
   end
 else

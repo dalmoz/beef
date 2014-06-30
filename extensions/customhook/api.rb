@@ -1,17 +1,7 @@
 #
-#   Copyright 2012 Wade Alcorn wade@bindshell.net
-#
-#   Licensed under the Apache License, Version 2.0 (the "License");
-#   you may not use this file except in compliance with the License.
-#   You may obtain a copy of the License at
-#
-#       http://www.apache.org/licenses/LICENSE-2.0
-#
-#   Unless required by applicable law or agreed to in writing, software
-#   distributed under the License is distributed on an "AS IS" BASIS,
-#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#   See the License for the specific language governing permissions and
-#   limitations under the License.
+# Copyright (c) 2006-2014 Wade Alcorn - wade@bindshell.net
+# Browser Exploitation Framework (BeEF) - http://beefproject.com
+# See the file 'doc/COPYING' for copying permission
 #
 module BeEF
 module Extension
@@ -24,13 +14,17 @@ module Customhook
     
     def self.mount_handler(beef_server)
       configuration = BeEF::Core::Configuration.instance
-      beef_server.mount(configuration.get("beef.extension.customhook.customhook_path"), BeEF::Extension::Customhook::Handler.new)
+      configuration.get("beef.extension.customhook.hooks").each do |h|
+        beef_server.mount(configuration.get("beef.extension.customhook.hooks.#{h.first}.path"), BeEF::Extension::Customhook::Handler.new)
+      end
     end
 
     def self.pre_http_start(beef_server)
       configuration = BeEF::Core::Configuration.instance
-      print_success "Successfully mounted a custom hook point"
-      print_more "Mount Point: #{configuration.get('beef.extension.customhook.customhook_path')}\nLoading iFrame: #{configuration.get('beef.extension.customhook.customhook_target')}\n"
+      configuration.get("beef.extension.customhook.hooks").each do |h|
+        print_success "Successfully mounted a custom hook point"
+        print_more "Mount Point: #{configuration.get("beef.extension.customhook.hooks.#{h.first}.path")}\nLoading iFrame: #{configuration.get("beef.extension.customhook.hooks.#{h.first}.target")}\n"
+      end
     end
   end
 end

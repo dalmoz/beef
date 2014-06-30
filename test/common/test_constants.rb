@@ -1,3 +1,8 @@
+#
+# Copyright (c) 2006-2014 Wade Alcorn - wade@bindshell.net
+# Browser Exploitation Framework (BeEF) - http://beefproject.com
+# See the file 'doc/COPYING' for copying permission
+#
 BEEF_TEST_DIR = "/tmp/beef-test/"
 
 # General constants
@@ -14,4 +19,6 @@ BEEF_PASSWD = "beef"
 RESTAPI_HOOKS = "http://" + ATTACK_DOMAIN + ":3000/api/hooks"
 RESTAPI_LOGS = "http://" + ATTACK_DOMAIN + ":3000/api/logs"
 RESTAPI_MODULES = "http://" + ATTACK_DOMAIN + ":3000/api/modules"
+RESTAPI_DNS = "http://" + ATTACK_DOMAIN + ":3000/api/dns"
+RESTAPI_SENG = "http://" + ATTACK_DOMAIN + ":3000/api/seng"
 RESTAPI_ADMIN = "http://" + ATTACK_DOMAIN + ":3000/api/admin"
